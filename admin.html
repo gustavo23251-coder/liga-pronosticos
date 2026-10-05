@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel Administrador</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    body { background-color: #f8f9fa; }
+    .admin-card { margin: 10px auto; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); background: white;}
+    .match-card { border-left: 5px solid #1a365d; background: white; margin-bottom: 15px; padding: 15px; border-radius: 8px; border: 1px solid #eee;}
+    .score-input { width: 70px !important; text-align: center; font-weight: bold; font-size: 1.2rem;}
+  </style>
+</head>
+<body>
+  <div class="container mt-4 mb-5" style="max-width: 900px;">
+    
+    <div class="card admin-card p-4 mx-auto mt-5" id="loginSection" style="max-width: 500px;">
+      <h3 class="text-center mb-4">⚙ Acceso Administrador</h3>
+      <input type="password" id="passInput" class="form-control form-control-lg mb-3" placeholder="Contraseña">
+      <button class="btn btn-dark btn-lg w-100" onclick="login()">Ingresar al Panel</button>
+    </div>
+
+    <div id="dashboardSection" class="d-none">
+      <div class="row g-3 mb-4">
+        
+        <div class="col-md-7">
+          <div class="admin-card p-4 h-100">
+            <h5 class="mb-3 text-primary">➕ Programar Partido</h5>
+            <div class="row g-2">
+              <div class="col-md-12 mb-2"><input list="listaJornadasOpciones" type="text" id="nuevaJornada" class="form-control" placeholder="Selecciona o escribe una Jornada..."><datalist id="listaJornadasOpciones"></datalist></div>
+              <div class="col-6"><input type="text" id="nuevoLocal" class="form-control" placeholder="Local"></div>
+              <div class="col-6"><input type="text" id="nuevoVisita" class="form-control" placeholder="Visita"></div>
+              <div class="col-12 mt-2"><button class="btn btn-primary w-100" onclick="agregarPartido()">Guardar Partido</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-5">
+          <div class="admin-card p-4 h-100 border-start border-success border-4 d-flex flex-column">
+            <h5 class="mb-3 text-success">👤 Nuevo Participante VIP</h5>
+            <input type="text" id="nuevoNombre" class="form-control mb-2" placeholder="Nombre">
+            <div class="input-group mb-3">
+              <input type="text" id="nuevaClave" class="form-control" placeholder="Contraseña">
+              <button class="btn btn-success" onclick="agregarParticipante()">Añadir</button>
+            </div>
+            <ul id="listaParticipantes" class="list-group list-group-flush border rounded flex-grow-1" style="max-height: 140px; overflow-y: auto;"></ul>
+          </div>
+        </div>
+
+        <div class="col-md-12">
+          <div class="admin-card p-4 border-start border-danger border-4">
+            <h5 class="mb-3 text-danger">🔒 Bloqueo de Fecha (Hora Perú)</h5>
+            <div class="row g-2 align-items-end">
+              <div class="col-md-4"><label class="form-label fw-bold small text-muted">Selecciona la Jornada</label><select id="selectJornadaCierre" class="form-select"></select></div>
+              <div class="col-md-5"><label class="form-label fw-bold small text-muted">Fecha y Hora Límite</label><input type="datetime-local" id="inputFechaCierre" class="form-control"></div>
+              <div class="col-md-3"><button class="btn btn-danger w-100" onclick="establecerCierre()">Fijar Bloqueo</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-card p-4">
+        <h4 class="mb-4">⏱️ Ingresar Resultados Reales</h4>
+        <div id="partidosContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby937YYWqvNdsx5lZ3hRDq0-KvjmDcPg99JyxecTrrn9Ah86URDTSppG9-y5MgTdxuNDg/exec";
+
+    async function callAPI(accion, params = {}) {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: accion, params: params })
+      });
+      const json = await res.json();
+      if (json.status === "error") throw new Error(json.message);
+      return json.data;
+    }
+
+    let globalPass = '';
+
+    function login() {
+      globalPass = document.getElementById('passInput').value;
+      Swal.fire({ title: 'Cargando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      
+      callAPI("getPartidosPendientesAPI", {password: globalPass})
+        .then(res => { Swal.close(); showDashboard(res); })
+        .catch(err => Swal.fire({ icon: 'error', title: 'Error', text: err.message }));
+    }
+
+    function showDashboard(partidos) {
+      document.getElementById('loginSection').classList.add('d-none');
+      document.getElementById('dashboardSection').classList.remove('d-none');
+      cargarListaParticipantes();
+      cargarOpcionesJornada();
+
+      let html = '';
+      partidos.forEach(p => {
+        html += `
+          <div class="match-card d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div><small class="text-muted fw-bold">${p.jornada}</small><br><span class="fs-5">${p.local} vs ${p.visita}</span></div>
+            <div class="d-flex align-items-center gap-2">
+              <input type="number" id="gl_${p.id}" class="form-control score-input" min="0"> <span class="fw-bold">-</span> 
+              <input type="number" id="gv_${p.id}" class="form-control score-input" min="0">
+              <button class="btn btn-dark ms-2 px-4" onclick="guardarResultado('${p.id}', this)">Registrar</button>
+            </div>
+          </div>`;
+      });
+      document.getElementById('partidosContainer').innerHTML = html || '<div class="alert alert-info">Todo al día.</div>';
+    }
+
+    function cargarOpcionesJornada() {
+      callAPI("getJornadasAPI").then(jornadas => {
+        let dl = document.getElementById('listaJornadasOpciones');
+        let sel = document.getElementById('selectJornadaCierre');
+        dl.innerHTML = ''; sel.innerHTML = '<option value="">-- Seleccionar --</option>';
+        jornadas.forEach(j => {
+           dl.innerHTML += `<option value="${j}">`;
+           sel.innerHTML += `<option value="${j}">${j}</option>`;
+        });
+      }).catch(err => console.error(err));
+    }
+
+    function cargarListaParticipantes() {
+      callAPI("getParticipantesAPI").then(parts => {
+        let html = '';
+        parts.forEach(p => html += `<li class="list-group-item py-1 fw-bold">${p.nombre}</li>`);
+        document.getElementById('listaParticipantes').innerHTML = html || '<li class="list-group-item text-muted">Aún no hay inscritos</li>';
+      }).catch(err => console.error(err));
+    }
+
+    function guardarResultado(idPartido, btn) {
+      let gl = document.getElementById(`gl_${idPartido}`).value, gv = document.getElementById(`gv_${idPartido}`).value;
+      if(gl === "" || gv === "") return Swal.fire({ icon: 'warning', text: 'Faltan goles.' });
+      Swal.fire({ title: 'Procesando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      
+      callAPI("guardarResultadoAPI", {password: globalPass, idPartido: idPartido, gl: parseInt(gl), gv: parseInt(gv)})
+        .then(res => {
+          Swal.fire({ icon: 'success', title: '¡Listo!', text: res, timer: 1000, showConfirmButton: false });
+          btn.innerHTML = '✅ Guardado'; btn.classList.replace('btn-dark', 'btn-success'); btn.disabled = true; 
+        }).catch(err => Swal.fire({ icon: 'error', title: 'Error', text: err.message }));
+    }
+
+    function agregarPartido() {
+      let j = document.getElementById('nuevaJornada').value, l = document.getElementById('nuevoLocal').value, v = document.getElementById('nuevoVisita').value;
+      if(!j || !l || !v) return Swal.fire({ icon: 'warning', text: 'Llena la jornada y equipos.' });
+      Swal.fire({ title: 'Agregando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      
+      callAPI("agregarPartidoAPI", {password: globalPass, jornada: j, local: l, visita: v})
+        .then(res => {
+          Swal.fire({ icon: 'success', title: 'Programado', timer: 1000, showConfirmButton: false });
+          document.getElementById('nuevoLocal').value = ''; document.getElementById('nuevoVisita').value = '';
+          cargarOpcionesJornada(); 
+          callAPI("getPartidosPendientesAPI", {password: globalPass}).then(showDashboard);
+        }).catch(err => Swal.fire({ icon: 'error', title: 'Error', text: err.message }));
+    }
+
+    function agregarParticipante() {
+      let nombre = document.getElementById('nuevoNombre').value;
+      let clave = document.getElementById('nuevaClave').value;
+      if(!nombre || !clave) return Swal.fire({ icon: 'warning', text: 'Ingresa nombre y contraseña.' });
+      Swal.fire({ title: 'Agregando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      
+      callAPI("agregarParticipanteAPI", {password: globalPass, nombre: nombre, clave: clave})
+        .then(res => {
+          Swal.fire({ icon: 'success', title: 'Creado', timer: 1000, showConfirmButton: false });
+          document.getElementById('nuevoNombre').value = ''; document.getElementById('nuevaClave').value = '';
+          cargarListaParticipantes(); 
+        }).catch(err => Swal.fire({ icon: 'error', title: 'Error', text: err.message }));
+    }
+
+    function establecerCierre() {
+      let j = document.getElementById('selectJornadaCierre').value;
+      let f = document.getElementById('inputFechaCierre').value;
+      if(!j || !f) return Swal.fire({ icon: 'warning', text: 'Selecciona la jornada y la fecha límite.' });
+      Swal.fire({ title: 'Bloqueando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      
+      callAPI("guardarCierreAPI", {password: globalPass, jornada: j, fecha: f})
+        .then(res => Swal.fire({ icon: 'success', title: '¡Bloqueo Activo!', text: res, timer: 2000, showConfirmButton: false }))
+        .catch(err => Swal.fire({ icon: 'error', title: 'Error', text: err.message }));
+    }
+  </script>
+</body>
+</html>
