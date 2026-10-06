@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html>
-  
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>🏆 Liga de Pronósticos</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Agregamos la librería de alertas que faltaba -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     body { background-color: #f4f6f9; }
     .header-app { background: linear-gradient(135deg, #1a365d 0%, #2b5c9c 100%); color: white; padding: 2rem 0; }
@@ -82,10 +83,12 @@
     </div>
   </div>
 
-    
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
   <script>
     // --- 1. CONEXIÓN API REST ---
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby937YYWqvNdsx5lZ3hRDq0-KvjmDcPg99JyxecTrrn9Ah86URDTSppG9-y5MgTdxuNDg/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby937YYWqvNdsx5lZ3hRDq0-KvjmDcPg99JyxecTrrn9Ah86URDTSppG9-y5MgTdxuNDg/exec
+";
 
     async function callAPI(accion, params = {}) {
       const res = await fetch(SCRIPT_URL, {
@@ -121,7 +124,9 @@
       document.getElementById('loader').classList.remove('d-none');
       document.getElementById('tablaPosiciones').classList.add('d-none');
       
-      callAPI("getPosicionesAPI", {jornada: jor, tipo: tip}).then(renderTable).catch(err => console.error(err));
+      callAPI("getPosicionesAPI", {jornada: jor, tipo: tip})
+        .then(renderTable)
+        .catch(err => Swal.fire('Error', 'No se pudo cargar la tabla: ' + err.message, 'error'));
     }
 
     function renderTable(data) {
@@ -146,8 +151,12 @@
       currentPartName = nombre;
       document.getElementById('dashNombre').innerText = nombre;
       document.getElementById('filtroModal').value = document.getElementById('filtroJornada').value;
-      var myModal = new bootstrap.Modal(document.getElementById('modalDashboard'));
+      
+      // Forma blindada de iniciar ventanas modales en Bootstrap 5
+      var modalEl = document.getElementById('modalDashboard');
+      var myModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
       myModal.show();
+      
       cargarDashboard();
     }
 
@@ -156,7 +165,12 @@
       document.getElementById('loaderModal').classList.remove('d-none');
       document.getElementById('dashboardContent').classList.add('d-none');
       
-      callAPI("getEstadisticasParticipanteAPI", {id: currentPartId, filtro: filtro}).then(renderDashboard).catch(err => console.error(err));
+      callAPI("getEstadisticasParticipanteAPI", {id: currentPartId, filtro: filtro})
+        .then(renderDashboard)
+        .catch(err => {
+          document.getElementById('loaderModal').classList.add('d-none');
+          Swal.fire('Error de conexión', 'Detalle: ' + err.message, 'error');
+        });
     }
 
     function renderDashboard(stats) {
