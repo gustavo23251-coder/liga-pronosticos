@@ -105,15 +105,21 @@
     let currentPartId = null;
     let currentPartName = null;
 
-    window.onload = function() {
-      callAPI("getJornadasAPI").then(jornadas => {
+    window.onload = async function() {
+      try {
+        // 1. Primero pide las jornadas y ESPERA a que lleguen
+        let jornadas = await callAPI("getJornadasAPI");
         let selectPrin = document.getElementById('filtroJornada');
         let selectMod = document.getElementById('filtroModal');
         jornadas.forEach(j => {
           selectPrin.innerHTML += `<option value="${j}">${j}</option>`;
           selectMod.innerHTML += `<option value="${j}">${j}</option>`;
         });
-      }).catch(err => console.error(err));
+      } catch (err) {
+        console.error("Error al cargar las fechas:", err);
+      }
+      
+      // 2. Una vez que las fechas ya están listas, RECIÉN pide la tabla
       cargarTabla();
     };
 
